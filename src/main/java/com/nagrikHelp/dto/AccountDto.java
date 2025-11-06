@@ -3,15 +3,17 @@ package com.nagrikHelp.dto;
 import com.nagrikHelp.model.Role;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
-public class AuthResponse {
-    private String token;
-    private Role role;
+public class AccountDto {
     private String name;
     private String email;
     private String phone;
+    private Boolean emailConsent;
+    private Boolean smsConsent;
     private Boolean phoneVerified;
-    // Note: token is returned on successful auth. OTP flows are handled separately.
+    private Role role;
 }

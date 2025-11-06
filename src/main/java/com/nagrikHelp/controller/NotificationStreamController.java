@@ -28,6 +28,7 @@ public class NotificationStreamController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
             String email = jwtService.extractUsername(token);
+            if (email != null) email = email.toLowerCase();
             if (!jwtService.isTokenValid(token, email)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }

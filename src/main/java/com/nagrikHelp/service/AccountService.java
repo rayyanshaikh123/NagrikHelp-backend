@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import com.nagrikHelp.dto.AccountDto;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +21,7 @@ public class AccountService {
     private final VoteRepository voteRepository;
     private final CommentRepository commentRepository;
     private final UserNotificationRepository userNotificationRepository;
+    private final OtpService otpService;
 
     /**
      * Deletes a user account and performs a soft cascade removal of their owned entities.
@@ -53,5 +55,38 @@ public class AccountService {
         // Finally delete the user
         userRepository.delete(user);
         return true;
+    }
+
+    public AccountDto getProfile(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) return null;
+        return new AccountDto(
+                user.getName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getEmailConsent(),
+                user.getSmsConsent(),
+                user.getPhoneVerified(),
+                user.getRole()
+        );
+    }
+
+    public AccountDto updateProfile(String email, com.nagrikHelp.dto.UpdateAccountRequest req) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) return null;
+        // update fields if provided
+        if (req.getPhone() != null) user.setPhone(req.getPhone());
+        if (req.getEmailConsent() != null) user.setEmailConsent(req.getEmailConsent());
+        if (req.getSmsConsent() != null) user.setSmsConsent(req.getSmsConsent());
+        User saved = userRepository.save(user);
+        // if sms consent enabled and phone present and not verified, send OTP
+        if (Boolean.TRUE.equals(saved.getSmsConsent()) && saved.getPhone() != null && (saved.getPhoneVerified() == null || !saved.getPhoneVerified())) {
+            try {
+                otpService.generateAndSendOtp(saved.getPhone(), "phone verification");
+            } catch (Exception ex) {
+                log.warn("Failed to send OTP during profile update: {}", ex.getMessage());
+            }
+        }
+        return getProfile(email);
     }
 }

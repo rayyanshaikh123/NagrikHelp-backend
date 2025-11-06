@@ -25,4 +25,12 @@ public class User {
     private String passwordHash;
 
     private Role role;
+    // whether user consented to receive emails
+    private Boolean emailConsent = false;
+    // whether user consented to receive SMS
+    private Boolean smsConsent = false;
+    // whether user's phone has been verified via OTP
+    private Boolean phoneVerified = false;
+    // mail provider (inferred from email domain) e.g. gmail.com
+    private String mailProvider;
 }

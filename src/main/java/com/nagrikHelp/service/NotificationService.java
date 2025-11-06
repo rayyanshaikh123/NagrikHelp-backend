@@ -27,6 +27,10 @@ public class NotificationService {
     @Autowired(required = false)
     private JavaMailSender mailSender;
     @Autowired(required = false)
+    private EmailService emailService;
+    @Autowired(required = false)
+    private SmsService smsService;
+    @Autowired(required = false)
     private UserNotificationRepository notificationRepository;
     @Autowired(required = false)
     private UserRepository userRepository;
@@ -37,8 +41,16 @@ public class NotificationService {
 
     // -------------------- Core channel helpers --------------------
     private void sendEmail(String to, String subject, String text) {
-        if (mailSender == null || to == null || to.isBlank()) return;
+        if (to == null || to.isBlank()) return;
         try {
+            if (emailService != null && emailService.isEnabled()) {
+                emailService.sendEmail(to, subject, EmailService.buildEmailBody(null, subject, "", text));
+                return;
+            }
+            if (mailSender == null) {
+                log.info("No mail sender configured; skipping email to {}", to);
+                return; // no sender available
+            }
             SimpleMailMessage sm = new SimpleMailMessage();
             sm.setTo(to.trim());
             sm.setSubject(subject);
@@ -50,6 +62,63 @@ public class NotificationService {
     }
 
     // -------------------- Public API --------------------
+    /**
+     * Send immediate notification to a specific user (email + SMS if available)
+     */
+    public void notifyUser(String recipientName,
+                           String recipientEmail,
+                           String recipientPhone,
+                           String issueTitle,
+                           String issueStatus,
+                           String shortMessage) {
+        if ((recipientEmail == null || recipientEmail.isBlank()) && (recipientPhone == null || recipientPhone.isBlank())) return;
+        String subj = "Update: " + (issueTitle == null ? "Issue" : issueTitle) + " — " + (issueStatus == null ? "Updated" : issueStatus);
+        String emailBody = EmailService.buildEmailBody(recipientName, issueTitle, issueStatus, shortMessage);
+        String smsBody = SmsService.buildSmsBody(recipientName, issueTitle, issueStatus, shortMessage);
+        long now = System.currentTimeMillis();
+        // Determine user-level consent (if we have the user record)
+        boolean allowEmail = true;
+        boolean allowSms = true;
+        if (userRepository != null && recipientEmail != null && !recipientEmail.isBlank()) {
+            try {
+                java.util.Optional<User> ou = userRepository.findByEmail(recipientEmail.trim());
+                if (ou.isPresent()) {
+                    User u = ou.get();
+                    allowEmail = u.getEmailConsent() == null ? true : Boolean.TRUE.equals(u.getEmailConsent());
+                    allowSms = u.getSmsConsent() == null ? false : Boolean.TRUE.equals(u.getSmsConsent());
+                    // require phoneVerified for SMS
+                    if (!Boolean.TRUE.equals(u.getPhoneVerified())) allowSms = false;
+                }
+            } catch (Exception ex) {
+                log.warn("Error checking user consent for {}: {}", recipientEmail, ex.getMessage());
+            }
+        }
+
+        // Save notification record if repository present
+        if (notificationRepository != null && recipientEmail != null && !recipientEmail.isBlank()) {
+            saveNotification(recipientEmail, null, "MANUAL", shortMessage == null ? subj : shortMessage, now);
+        }
+
+        // Send channels only if user consent and provider available
+        if (recipientEmail != null && !recipientEmail.isBlank()) {
+            if (allowEmail) {
+                try {
+                    log.debug("Sending email to {} (providerAvailable={} )", recipientEmail, emailService != null && emailService.isEnabled());
+                } catch (Exception __) {}
+                sendEmail(recipientEmail, subj, emailBody);
+            } else {
+                log.debug("Skipping email send to {} due to user consent=false", recipientEmail);
+            }
+        }
+        if (recipientPhone != null && !recipientPhone.isBlank()) {
+            if (allowSms) {
+                try { log.debug("Sending SMS to {} (providerAvailable={})", recipientPhone, smsService != null && smsService.isEnabled()); } catch (Exception __) {}
+                sendSms(recipientPhone, smsBody);
+            } else {
+                log.debug("Skipping SMS send to {} due to user consent or phone not verified", recipientPhone);
+            }
+        }
+    }
     public void notifyFollowersOnStatusChange(Issue issue) {
         if (issue == null) return;
         String msg = "Update: Issue '" + truncate(issue.getTitle(),40) + "' is now " + issue.getStatus() + ".";
@@ -61,8 +130,8 @@ public class NotificationService {
                 saveNotification(em.trim(), issue.getId(), "ISSUE_STATUS", msg, now);
             }
         }
-        // Email followers
-        if (mailSender != null && issue.getFollowerEmails() != null) {
+        // Email followers (use sendEmail which checks provider & logs if missing)
+        if (issue.getFollowerEmails() != null) {
             for (String email : issue.getFollowerEmails()) {
                 if (email == null || email.isBlank()) continue;
                 sendEmail(email, "Issue Status Update", msg);
@@ -111,8 +180,9 @@ public class NotificationService {
         if (notificationRepository == null || email == null || email.isBlank()) return null;
         long ts = System.currentTimeMillis();
         try {
-            UserNotification n = UserNotification.builder()
-                    .userEmail(email.trim())
+        String emailKey = email.trim().toLowerCase();
+        UserNotification n = UserNotification.builder()
+            .userEmail(emailKey)
                     .issueId(issueId)
                     .type(type == null || type.isBlank() ? "MANUAL" : type.trim())
                     .message(message == null || message.isBlank() ? "Test notification" : message.trim())
@@ -129,12 +199,24 @@ public class NotificationService {
         }
     }
 
+    /**
+     * Report availability of configured providers for diagnostics.
+     */
+    public java.util.Map<String, Boolean> providerStatus() {
+        java.util.Map<String, Boolean> m = new java.util.HashMap<>();
+        try { m.put("emailProvider", emailService != null && emailService.isEnabled()); } catch (Exception e) { m.put("emailProvider", false); }
+        try { m.put("mailSender", mailSender != null); } catch (Exception e) { m.put("mailSender", false); }
+        try { m.put("smsProvider", smsService != null && smsService.isEnabled()); } catch (Exception e) { m.put("smsProvider", false); }
+        return m;
+    }
+
     // -------------------- Internal helpers --------------------
     private void saveNotification(String email, String issueId, String type, String message, long ts) {
         if (notificationRepository == null || email == null || email.isBlank()) return;
         try {
+            String emailKey = email.trim().toLowerCase();
             UserNotification n = UserNotification.builder()
-                    .userEmail(email.trim())
+                    .userEmail(emailKey)
                     .issueId(issueId)
                     .type(type)
                     .message(message)
@@ -142,7 +224,7 @@ public class NotificationService {
                     .read(false)
                     .build();
             notificationRepository.save(n);
-            log.debug("Notification saved email={} type={} issueId={} id={}", email, type, issueId, n.getId());
+            log.debug("Notification saved email={} type={} issueId={} id={}", emailKey, type, issueId, n.getId());
             if (notificationStreamService != null) {
                 notificationStreamService.broadcast(n);
             }
@@ -170,8 +252,16 @@ public class NotificationService {
             log.debug("sendSms called with empty phone or message; skipping");
             return;
         }
-        // Currently no SMS provider configured: log and return. This prevents
-        // runtime failures and keeps behavior testable.
+        try {
+            if (smsService != null && smsService.isEnabled()) {
+                smsService.sendSms(phoneE164, message);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("SMS send failed to {}: {}", phoneE164, e.getMessage());
+            return;
+        }
+        // Fallback: no SMS provider configured — log
         log.info("(noop) sendSms to {} message={}", phoneE164, truncate(message, 160));
     }
 }

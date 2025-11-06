@@ -10,7 +10,9 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 import java.util.Properties;
 
 @Configuration
-@ConditionalOnProperty(name = "spring.mail.host")
+// Only enable mail config when a username is provided. This avoids accidental attempts
+// to authenticate with empty/invalid credentials when no env vars are set.
+@ConditionalOnProperty(name = "spring.mail.username")
 public class MailConfig {
 
     @Bean

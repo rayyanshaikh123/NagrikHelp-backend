@@ -42,8 +42,7 @@ dependencies {
 	implementation 'org.knowm.xchart:xchart:3.8.8'
 	// OCR (Tesseract via Tess4J). Note: runtime requires native tesseract/leptonica installed.
 	implementation 'net.sourceforge.tess4j:tess4j:5.11.0'
-	// Removed Twilio SDK (using direct REST API instead)
-	// implementation 'com.twilio.sdk:twilio:9.15.3'
+	// (Removed Twilio SDK) SMS is sent via direct REST call to Twilio API in SmsService
 	// Spring Boot Mail
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	// Testing

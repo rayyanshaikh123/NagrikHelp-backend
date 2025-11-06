@@ -40,3 +40,4 @@ out/
 # Ignore runtime property files containing secrets
 src/main/resources/application.properties
 src/main/resources/application-local.properties
+.env.local

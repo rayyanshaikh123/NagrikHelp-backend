@@ -6,6 +6,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,5 +24,21 @@ public class AccountController {
         if (user == null) return ResponseEntity.status(401).build();
         boolean deleted = accountService.deleteAccount(user.getUsername());
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> me(@AuthenticationPrincipal UserDetails user) {
+        if (user == null) return ResponseEntity.status(401).build();
+        var dto = accountService.getProfile(user.getUsername());
+        if (dto == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(dto);
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<?> updateMe(@AuthenticationPrincipal UserDetails user, @RequestBody com.nagrikHelp.dto.UpdateAccountRequest req) {
+        if (user == null) return ResponseEntity.status(401).build();
+        var dto = accountService.updateProfile(user.getUsername(), req);
+        if (dto == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(dto);
     }
 }

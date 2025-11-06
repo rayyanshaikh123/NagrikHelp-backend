@@ -16,6 +16,12 @@ public class RegisterRequest {
 
     private String phone;
 
+    // Whether the user consents to receive email notifications
+    private Boolean emailConsent = false;
+
+    // Whether the user consents to receive SMS notifications
+    private Boolean smsConsent = false;
+
     @NotBlank
     @Size(min = 6, max = 100)
     private String password;
