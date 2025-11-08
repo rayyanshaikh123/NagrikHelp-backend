@@ -13,6 +13,7 @@ public class AccountDto {
     private String email;
     private String phone;
     private Boolean emailConsent;
+    private Boolean emailVerified;
     private Boolean smsConsent;
     private Boolean phoneVerified;
     private Role role;

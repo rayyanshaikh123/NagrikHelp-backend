@@ -26,10 +26,16 @@ public class User {
 
     private Role role;
     // whether user consented to receive emails
+    @Builder.Default
     private Boolean emailConsent = false;
+    // whether user's email has been verified via code
+    @Builder.Default
+    private Boolean emailVerified = false;
     // whether user consented to receive SMS
+    @Builder.Default
     private Boolean smsConsent = false;
     // whether user's phone has been verified via OTP
+    @Builder.Default
     private Boolean phoneVerified = false;
     // mail provider (inferred from email domain) e.g. gmail.com
     private String mailProvider;

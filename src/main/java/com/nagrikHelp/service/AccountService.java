@@ -22,6 +22,7 @@ public class AccountService {
     private final CommentRepository commentRepository;
     private final UserNotificationRepository userNotificationRepository;
     private final OtpService otpService;
+    private final EmailVerificationService emailVerificationService;
 
     /**
      * Deletes a user account and performs a soft cascade removal of their owned entities.
@@ -61,13 +62,14 @@ public class AccountService {
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) return null;
         return new AccountDto(
-                user.getName(),
-                user.getEmail(),
-                user.getPhone(),
-                user.getEmailConsent(),
-                user.getSmsConsent(),
-                user.getPhoneVerified(),
-                user.getRole()
+        user.getName(),
+        user.getEmail(),
+        user.getPhone(),
+        user.getEmailConsent(),
+        user.getEmailVerified(),
+        user.getSmsConsent(),
+        user.getPhoneVerified(),
+        user.getRole()
         );
     }
 
@@ -88,5 +90,26 @@ public class AccountService {
             }
         }
         return getProfile(email);
+    }
+
+    public void sendEmailVerification(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) return;
+        // send code to user's email (include display name for personalization)
+        try {
+            emailVerificationService.generateAndSendCode(user.getEmail(), user.getName());
+        } catch (Exception ex) {
+            log.warn("Failed to send email verification: {}", ex.getMessage());
+        }
+    }
+
+    public boolean verifyEmailCode(String email, String code) {
+        boolean ok = emailVerificationService.verifyCode(email, code);
+        if (!ok) return false;
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) return false;
+        user.setEmailVerified(true);
+        userRepository.save(user);
+        return true;
     }
 }
